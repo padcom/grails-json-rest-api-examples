@@ -5,7 +5,7 @@ import org.junit.Test
 
 import groovyx.net.http.*
 
-class ExampleTests extends GroovyTestCase {
+class RESTfulTests extends GroovyTestCase {
     @Test
     void testCRUD() {
         def client = new RESTClient("http://localhost:8888/example/api/")
