@@ -6,7 +6,7 @@ class Person {
   String firstName
   String lastName
 
-  static api [
+  static api = [
     transients: [ 'fullName' ]
   ]
 
