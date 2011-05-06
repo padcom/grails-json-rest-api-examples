@@ -63,6 +63,7 @@ class RESTfulTests extends GroovyTestCase {
         assert actual.data.success == expected.data.success
         assert actual.data.data.firstName == expected.data.data.firstName
         assert actual.data.data.lastName  == expected.data.data.lastName
+        assert actual.data.data.fullName  == null
     }
 
     @Test

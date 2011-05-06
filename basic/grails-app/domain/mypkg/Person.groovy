@@ -7,7 +7,7 @@ class Person {
   String lastName
 
   static api = [
-    transients: [ 'fullName' ]
+    excludedFields: [ 'fullName' ]
   ]
 
   static transients = [ 'fullName' ]
