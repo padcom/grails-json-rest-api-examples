@@ -15,6 +15,7 @@ environments {
         dataSource {
             dbCreate = "create-drop" // one of 'create', 'create-drop','update'
             url = "jdbc:hsqldb:file:target/db/dev;shutdown=true"
+			logSql = true
         }
     }
     test {
