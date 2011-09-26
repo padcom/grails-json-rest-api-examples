@@ -5,5 +5,5 @@ class Address {
     
     String street
     String city
-    Person person
+    Data data
 }
