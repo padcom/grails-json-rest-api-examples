@@ -4,20 +4,31 @@ import mypkg.Address
 import mypkg.Data
 import mypkg.Person
 
+import grails.test.*
+
 import org.codehaus.groovy.grails.commons.DefaultGrailsApplication
 import org.codehaus.groovy.grails.commons.DomainClassArtefactHandler;
 import org.grails.plugins.rest.request.*
 import org.junit.Test
 
-class DefaultRequestParserTest {
-	@Test 
-	void "Will parse simple request"() {
+class DefaultRequestParserTest extends GrailsUnitTestCase {
+	void "testWill parse simple request"() {
 		// arrange
+		def person = new Person(id: 1L, firstName: "John", lastName: "Doe", address: [])
+		mockDomain(Person, [ person ])
+		def data1 = new Data(something: "value1")
+		def data2 = new Data(something: "value2")
+		mockDomain(Data, [ data1, data2 ])
+		def address1 = new Address(id: 1L, city: "New York", street: "13th", data: data1)
+		def address2 = new Address(id: 2L, city: "New York", street: "14th", data: data2)
+		mockDomain(Address, [ address1, address2 ])
+		person.address << address1
+		person.address << address2
+		
 		def gcl = new GroovyClassLoader(this.class.classLoader)
 		def ga = new DefaultGrailsApplication([Person, Address, Data] as Class[], gcl)
 		ga.initialise()
-		println "ga.artefact: ${ga.getArtefact(DomainClassArtefactHandler.TYPE, Data.class.name)}"
-
+	
 		def dcr = { String name -> 
 			[ 'person': Person ].get(name)
 		} as DomainClassResolver
@@ -25,16 +36,12 @@ class DefaultRequestParserTest {
 		def parser = new DefaultRequestParser(grailsApplication: ga, domainClassResolver: dcr)
 		
 		// act
-		parser.parse("/person/1/address/1/data/something/else?first=10")
-		Request actual = parser.parse("/person/1/address/3/data/something?first=10")
+//		def actual = parser.parse("/person/1/address/2")
+		def actual = parser.parse("/person/1/address/3/data/something?first=10")
+//		def actual = parser.parse("/person/1/address/3/data/something?first=10")
 		
 		// assert
-		assert actual.params == [ first: '10' ]
-		assert actual.path.size() == 1
-		assert actual.path[0] instanceof CollectionResource
-		def resource = actual.path[0] as CollectionResource
-		assert resource.name == 'person'
-		assert resource.domainClass == Person
+		assert actual == null
 	}
 }
 

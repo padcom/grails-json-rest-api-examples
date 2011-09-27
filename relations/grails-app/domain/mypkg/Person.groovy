@@ -7,5 +7,4 @@ class Person {
   
   String firstName
   String lastName
-  Data data
 }
