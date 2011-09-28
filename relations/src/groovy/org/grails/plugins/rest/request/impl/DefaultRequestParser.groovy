@@ -19,34 +19,35 @@ class DefaultRequestParser {
 	
 	def parse(URI uri) {
 		def parts = uri.path.tokenize('/')
-		println "parts: ${parts}"
 		
-		def program = []
-				
-		def request = new Request()
 		def parent = null
 		def needId = true
 		def done = false
-		def lastId = null
-		
-		parts.eachWithIndex { String part, partIndex ->
-			def isLast = partIndex == parts.size() - 1
-//			print "isLast: ${isLast}: "
+
+		def request = new Request()
+			
+		def root = null
+		def data = []
+		def path = []
+		def kind = ""
+		def rootPath = ""
+		def domainObject = null
+			
+		parts.each { String part ->
 			if (done)
 				throw new Exception("Expected end of path")
 			if (parent == null) {
 				parent = domainClassResolver.resolve(part)
+				root = parent
+				rootPath = part
 				needId = true
-//				println "Access ${parent} collection (top-level)"
-				if (isLast) program << accessTopLevelCollectionAsList(parent)
-				else program <<  accessTopLevelCollection(parent)
+				kind = "list"
 			} else {
 				try {
 					def id = part as Long
+					data << id
+					kind = "object"
 					needId = false
-					if (program.size() == 1) program << accessItemFromCollection(id)
-					else program << findItemInCollection(id)
-//					println "Access element with id = ${id} of ${parent} collection"
 				} catch (NumberFormatException e) {
 					def field = parent.declaredFields.find { it.name == part }
 					if (field == null)
@@ -54,41 +55,35 @@ class DefaultRequestParser {
 					if (needId)
 						throw new Exception("An ID has been expected at this point")
 					if (isDomainClass(field)) {
-						program << accessField(field.name)
-//						println "Access field ${field.name} of ${parent.name}"
+						path << field.name
 						parent = field.type
 						needId = false
+						domainObject = getDomainClass(field)
+						kind = "object"
 					} else if (isRelatedDomainClass(parent, field)) {
-//						println "Access collection ${field.name} of ${parent.name}"
-						if (isLast) program << accessCollectionAsList(field.name)
-						else program << accessField(field.name)
+						data << field.name
+						path << field.name
 						parent = grailsApplication.getArtefact(DomainClassArtefactHandler.TYPE, parent.name).getRelatedClassType(field.name)
 						needId = true
+						kind = "list"
 					} else {
-						program << accessField(field.name)
-//						println "Access primitive field ${field.name} (${field.type.name}) of ${parent.name}"
+						path << field.name
 						done = true
+						kind = "field"
 					}
 				}
 			}
 		}
 		
-		def current = null
-		try {
-			for (def step : program) {
-				if (current == null)
-					current = step()
-				else
-					current = step(current)
-			}
-		} catch (Exception e) {
-			current = null
-		}
-		return current
+		return new Request(root: root, data: data, path: path, kind: kind, rootPath: rootPath, domainObject: domainObject)
 	}
 	
 	private boolean isDomainClass(field) {
-		grailsApplication.getArtefact(DomainClassArtefactHandler.TYPE, field.type.name) != null
+		getDomainClass(field) != null
+	}
+	
+	private GrailsDomainClass getDomainClass(field) {
+		grailsApplication.getArtefact(DomainClassArtefactHandler.TYPE, field.type.name)
 	}
 	
 	private boolean isRelatedDomainClass(parent, field) {
@@ -97,31 +92,5 @@ class DefaultRequestParser {
 
 	GrailsDomainClass getGrailsDomainClass(Class domainClass) {
 		grailsApplication.getArtefact(DomainClassArtefactHandler.TYPE, domainClass.name)
-	}
-	
-	// actions:
-	
-	def accessTopLevelCollection(collection) {
-		return { collection }
-	}
-	
-	def accessTopLevelCollectionAsList(collection) {
-		return { collection.list() }
-	}
-	
-	def accessItemFromCollection(id) {
-		return { it.get(id) }
-	}
-
-	def findItemInCollection(id) {
-		return { it.find { it.id == id } }
-	}
-		
-	def accessCollectionAsList(name) {
-		return { it."${name}".toList() }
-	}
-	
-	def accessField(name) {
-		return { it."${name}" }
 	}
 }

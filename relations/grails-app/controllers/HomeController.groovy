@@ -1,60 +1,67 @@
-import org.codehaus.groovy.grails.commons.DomainClassArtefactHandler;
-import org.codehaus.groovy.grails.commons.GrailsApplication;
-import org.codehaus.groovy.grails.web.converters.ConverterUtil;
-
 import grails.converters.*
-
 import mypkg.*
 
+import org.codehaus.groovy.grails.commons.DomainClassArtefactHandler
+import org.codehaus.groovy.grails.commons.GrailsApplication
+import org.grails.plugins.rest.request.DomainClassResolver
+import org.grails.plugins.rest.request.impl.DefaultRequestParser
+
 class HomeController {
-	def index = {
-		// request.forwardURI - request.contextPath - "/home"
-		def path = request.forwardURI - request.contextPath - "/home"
-		def query = request.queryString
-		
-		def pathElements = path.split('/').tail()
-		
-		def elements = [], parent = null
-		for (int i = 0; i < pathElements.size(); i += 2) {
-			def element = [ name: pathElements[i], id: pathElements[i + 1] ]
-			element.parent = parent
-			element.object = getEntity(parent, element.name as String, element.id as Integer)
-			elements << element
-			parent = element.object
+	private getRequestedData(String uri) {
+		def dcr = { String name ->
+			[ 'person': Person, 'address': Address ].get(name)
+		} as DomainClassResolver
+		def parser = new DefaultRequestParser(grailsApplication: grailsApplication, domainClassResolver: dcr)
+		def outcome = parser.parse(uri)
+		def root = readRequestedData(outcome.root, outcome.data)
+		def result = readRequestedObject(root, outcome.path)
+		if (outcome.kind == 'list')
+			return result
+		else {
+			def key = outcome.path.size() ? outcome.path[-1] : outcome.rootPath
+			return result[0] == null ? null : [ (key): result[0] ]
 		}
-		
-		println elements
-		
-		render text: ([ message: "Hello, world!", path: path, query: query, elements: elements ] as JSON), contentType: "application/json" 
+	}
+
+	private readRequestedData(root, data) {
+		try {
+			return root.createCriteria().listDistinct {
+				if (data.size() > 0)
+					build_id(data.head(), delegate, data.tail())
+			}
+		} catch (Exception e) {
+			println e.message
+			return null
+		}
 	}
 	
-	def mappings = [
-		'person': Person,
-		'address': Address
-	]
+	private build_id(id, d, rest) {
+		d.eq 'id', id
+		if (rest.size() >= 2)
+			build_collection(rest.head(), d, rest.tail())
+	}
 	
-	GrailsApplication grailsApplication
-	
-	private getEntity(parent, String name, Integer id) {
-		if (parent == null) {
-			println "name: ${name}"
-			println "application: ${grailsApplication}"
-			def clazz = mappings[name]
-			println clazz.properties.collect { it.key }
-			return clazz.get(id)
-		} else {
-			
-			def domainClass = grailsApplication.getArtefact(DomainClassArtefactHandler.TYPE, parent.class.name)
-			println domainClass.getRelatedClassType(name).name
-			
-			def result = parent.withCriteria {
-				eq "id", parent.id
-				"${name}" {
-					eq "id", id as Long
-				}
-			}
-			println result
-			return result."${name}".getAt(0)
+	private build_collection(name, d, rest) {
+		d."${name}" {
+			if (rest.size() >= 1 && rest.head() instanceof Number)
+				build_id(rest.head(), delegate, rest.tail())
 		}
+	}
+
+	private readRequestedObject(root, path) {
+		def result = root
+		path.each { result = result[it] }
+		return result.flatten()
+	}
+	
+	def index = {
+		def uri = request.forwardURI - request.contextPath - "/home"
+		if (request.queryString) uri += "?" +  request.queryString
+		def data = getRequestedData(uri)
+
+		if (data)
+			render text: (data as JSON), contentType: "application/json", status: 200
+		else
+			render text: ([ error: 'Not found' ]) as JSON, contentType: "application/json", status: 404
 	}
 }
